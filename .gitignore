@@ -1,2 +1,26 @@
+# Python
+venv/
+.venv/
+__pycache__/
 *.pyc
-*.sqlite3
+
+# Django
+db.sqlite3
+.env
+
+# React
+node_modules/
+build/
+dist/
+
+# Environment and secrets
+*.pem
+*.key
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
