@@ -1,0 +1,92 @@
+
+name: Django React CI/CD - Build and Push to ECR
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    name: Build and Push Docker Images
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # 1. Checkout GitHub repository
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. Configure AWS credentials
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
+
+      # 3. Login to Amazon ECR
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # 4. Build Django Backend Image
+      - name: Build Backend Docker Image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ecr-task01
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
+            -f Dockerfile .
+
+      # 5. Push Django Backend Image
+      - name: Push Backend Image to ECR
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ecr-task01
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+          docker tag \
+            $REGISTRY/$REPOSITORY:$IMAGE_TAG \
+            $REGISTRY/$REPOSITORY:latest
+
+          docker push $REGISTRY/$REPOSITORY:latest
+
+      # 6. Build React Frontend Image
+      - name: Build Frontend Docker Image
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ecr-task-frontend
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build \
+            -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
+            -f frontend/Dockerfile frontend
+
+      # 7. Push React Frontend Image
+      - name: Push Frontend Image to ECR
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPOSITORY: ecr-task-frontend
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+
+          docker tag \
+            $REGISTRY/$REPOSITORY:$IMAGE_TAG \
+            $REGISTRY/$REPOSITORY:latest
+
+          docker push $REGISTRY/$REPOSITORY:latest
+
+      # 8. Success message
+      - name: CI/CD Status
+        run: |
+          echo "Docker images successfully pushed to AWS ECR!"
+          echo "Backend: ecr-task01"
+          echo "Frontend: ecr-task-frontend"
