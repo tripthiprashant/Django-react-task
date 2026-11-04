@@ -1,8 +1,10 @@
-
-# Build React application
-FROM node:20-alpine AS build
+# Stage 1: Build React application
+FROM node:20-bullseye AS build
 
 WORKDIR /app
+
+# Compatibility for older Webpack/react-scripts
+ENV NODE_OPTIONS=--openssl-legacy-provider
 
 COPY package*.json ./
 
@@ -12,7 +14,8 @@ COPY . .
 
 RUN npm run build
 
-# Serve React using Nginx
+
+# Stage 2: Serve React using Nginx
 FROM nginx:alpine
 
 COPY --from=build /app/build /usr/share/nginx/html
