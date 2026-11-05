@@ -1,0 +1,78 @@
+{
+  "containerDefinitions": [
+    {
+      "name": "backend",
+      "image": "966499104819.dkr.ecr.ap-southeast-2.amazonaws.com/ecr-task01@sha256:9ec843d0e526656660bdb01ee24ca086e162f0bc5a17a5e809fd1f77d0d15520",
+      "cpu": 0,
+      "portMappings": [
+        {
+          "containerPort": 8000,
+          "hostPort": 8000,
+          "protocol": "tcp",
+          "name": "backend-8000-tcp",
+          "appProtocol": "http"
+        }
+      ],
+      "essential": true,
+      "environment": [],
+      "environmentFiles": [],
+      "mountPoints": [],
+      "volumesFrom": [],
+      "ulimits": [],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/django-react-task",
+          "awslogs-region": "ap-southeast-2",
+          "awslogs-stream-prefix": "ecs"
+        },
+        "secretOptions": []
+      },
+      "systemControls": []
+    },
+    {
+      "name": "frontend",
+      "image": "966499104819.dkr.ecr.ap-southeast-2.amazonaws.com/ecr-task-frontend@sha256:548be9eedebb47d853149e488370dcb633ee69065df7f854c14d5199e5e0fe24",
+      "cpu": 0,
+      "portMappings": [
+        {
+          "containerPort": 80,
+          "hostPort": 80,
+          "protocol": "tcp",
+          "name": "frontend-80-tcp"
+        }
+      ],
+      "essential": true,
+      "environment": [],
+      "environmentFiles": [],
+      "mountPoints": [],
+      "volumesFrom": [],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/django-react-task",
+          "awslogs-region": "ap-southeast-2",
+          "awslogs-stream-prefix": "ecs"
+        },
+        "secretOptions": []
+      },
+      "systemControls": []
+    }
+  ],
+  "family": "django-react-task",
+  "taskRoleArn": "arn:aws:iam::966499104819:role/ecsTaskExecutionRole",
+  "executionRoleArn": "arn:aws:iam::966499104819:role/ecsTaskExecutionRole",
+  "networkMode": "awsvpc",
+  "volumes": [],
+  "placementConstraints": [],
+  "runtimePlatform": {
+    "cpuArchitecture": "X86_64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "requiresCompatibilities": [
+    "FARGATE"
+  ],
+  "cpu": "1024",
+  "memory": "3072",
+  "enableFaultInjection": false
+}

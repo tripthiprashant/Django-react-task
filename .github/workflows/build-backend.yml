@@ -1,0 +1,41 @@
+name: Build Backend Image
+
+on:
+  workflow_call:
+
+jobs:
+  build-backend:
+    name: Build and Push Django Backend
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Backend Image
+        run: |
+          docker build \
+            -t 966499104819.dkr.ecr.ap-southeast-2.amazonaws.com/ecr-task01:${GITHUB_SHA} \
+            -f Dockerfile .
+
+      - name: Push Backend Image
+        run: |
+          docker push \
+            966499104819.dkr.ecr.ap-southeast-2.amazonaws.com/ecr-task01:${GITHUB_SHA}
+
+      - name: Verify Backend Image
+        run: |
+          aws ecr describe-images \
+            --repository-name ecr-task01 \
+            --image-ids imageTag=${GITHUB_SHA} \
+            --region ap-southeast-2

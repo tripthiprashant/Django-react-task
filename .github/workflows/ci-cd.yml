@@ -1,0 +1,122 @@
+name: Django React ECS CI/CD
+
+on:
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+# Prevent overlapping production deployments.
+concurrency:
+  group: django-react-ecs-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+
+  # JOB 1: Build backend
+  build-backend:
+    name: Backend Build
+    uses: ./.github/workflows/build-backend.yml
+    secrets: inherit
+
+  # JOB 2: Build frontend
+  build-frontend:
+    name: Frontend Build
+    uses: ./.github/workflows/build-frontend.yml
+    secrets: inherit
+
+  # JOB 3: Deploy only after BOTH builds succeed
+  deploy:
+    name: Register Task Definition and Deploy ECS
+    runs-on: ubuntu-latest
+    needs:
+      - build-backend
+      - build-frontend
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
+
+      - name: Verify AWS Authentication
+        run: aws sts get-caller-identity
+
+      # Update backend image in task definition
+      - name: Update Backend Task Definition
+        id: backend-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: backend
+          image: 966499104819.dkr.ecr.ap-southeast-2.amazonaws.com/ecr-task01:${{ github.sha }}
+
+      # Update frontend image in the same task definition
+      - name: Update Frontend Task Definition
+        id: frontend-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: ${{ steps.backend-task-def.outputs.task-definition }}
+          container-name: frontend
+          image: 966499104819.dkr.ecr.ap-southeast-2.amazonaws.com/ecr-task-frontend:${{ github.sha }}
+
+      # Register new revision and update ECS service
+      - name: Deploy to Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.frontend-task-def.outputs.task-definition }}
+          service: django-react-service
+          cluster: ecs-task
+          wait-for-service-stability: true
+
+  # JOB 4: Notify by SNS, even if a build or deployment fails
+  notify:
+    name: Send SNS Deployment Notification
+    runs-on: ubuntu-latest
+    needs:
+      - build-backend
+      - build-frontend
+      - deploy
+    if: always()
+
+    steps:
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-southeast-2
+
+      - name: Send Deployment Result
+        env:
+          SNS_TOPIC_ARN: ${{ secrets.SNS_TOPIC_ARN }}
+          BACKEND_RESULT: ${{ needs.build-backend.result }}
+          FRONTEND_RESULT: ${{ needs.build-frontend.result }}
+          DEPLOY_RESULT: ${{ needs.deploy.result }}
+        run: |
+          if [ "$BACKEND_RESULT" = "success" ] && \
+             [ "$FRONTEND_RESULT" = "success" ] && \
+             [ "$DEPLOY_RESULT" = "success" ]; then
+
+            aws sns publish \
+              --topic-arn "$SNS_TOPIC_ARN" \
+              --subject "ECS Deployment Successful" \
+              --message "Backend and frontend images built successfully. ECS deployment completed. Commit: $GITHUB_SHA"
+
+          else
+
+            aws sns publish \
+              --topic-arn "$SNS_TOPIC_ARN" \
+              --subject "ECS Deployment Failed" \
+              --message "CI/CD pipeline failed. Backend: $BACKEND_RESULT. Frontend: $FRONTEND_RESULT. Deployment: $DEPLOY_RESULT. Commit: $GITHUB_SHA. Check GitHub Actions logs."
+
+          fi
